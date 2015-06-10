@@ -1,4 +1,6 @@
 ### BASIC CONNECTIVITY TESTING - R STUDIO (Windows Deployment) via RODBC to Amazon Redshift
+### uses RODBC - which is probably NOT the best method - so please handle with care.
+# 
 # Ryan Anderson, June 2015
 # Need to install this on Windows first (ODBC COnnection)
 # http://docs.aws.amazon.com/redshift/latest/mgmt/install-odbc-driver-windows.html  # Then TEST it from Microsoft 
@@ -13,7 +15,8 @@ getwd()  #where are we
 password <- read.table(file="private.txt", header=FALSE) # where I'm holding pw outside public code , for now
 password <- paste(password[1,1],sep="")  # ugly - but masks my password in public code (can also use registry, may update later)
 
-channel <- odbcConnect("AWS_hydrogen_source", uid = "master_user", pwd = password)
+channel <- odbcConnect("AWS_hydrogen_source", uid = "master_user", pwd = password) #west region
+channel <- odbcConnect("AWS_hydrogen2_source", uid = "master_user", pwd = password) # east region
 channel # works!  if a positive integer, you are connected
 
 odbcGetInfo(channel)
@@ -27,14 +30,24 @@ sqlSave(channel,df,"test_table", rownames=F)  # 50 rows about half a minute - 5k
 test_data <- sqlQuery(channel,"select * from test_table where close > '0'") # reading is fast. subset
 sqlDrop(channel, "test_table", errors = FALSE) # clean up our toys
 
-
+ 
 #### iris
 iris
 colnames(iris) <- tolower(colnames(iris)) # I think AWS does not like caps in column names
 head(iris)
+sqlDrop(channel, "iris", errors = FALSE) # precaution in case table
 sqlSave(channel,iris,"iris", rownames=F) ## SLOOOOOOW!  SO SLOW! Must be a better way 150 ~1.5 minutes
 iris_results <- sqlQuery(channel,"select * from iris where species = 'virginica'") # fast subset. this does work and shows up on AWS Redshift Dashboard
-sqlFetch(channel, "iris", max = 5)
+sqlFetch(channel, "iris", max = 4)
+sqlColumns(channel, "iris")
+ 
+# works!  careful about using sqlSave - slow.  going to explore using RPostgreSQL - which may be better/smarter/faster
+
+## clean up our toys
+sqlDrop(channel, "iris", errors = FALSE) # clean up our toys
+odbcClose(channel)
+
+################## END OF CODE ###
 
 ## needs work or not sure what these do yet
 sqlPrimaryKeys(channel,"iris")
@@ -42,11 +55,4 @@ odbcFetchRows(channel, max = 0, buffsize = 1000, nullstring = NA_character_, bel
 odbcGetErrMsg(channel)
 odbcClearError(channel)
 
-## not working
-sqlUpdate(channel, iris_results, "iris")   
-sqlColumns(channel, "USArrests")
-
-## clean up our toys
-sqlDrop(channel, "iris", errors = FALSE) # clean up our toys
-odbcClose(channel)
 
